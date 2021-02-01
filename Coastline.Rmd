@@ -1,0 +1,26 @@
+---
+title: "Coastline"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Map of the coastline
+
+```{r eval=FALSE}
+usashp <- raster::getData("GADM", country = "USA", level = 1, path = "data")
+akshp <- subset(usashp, NAME_1 %in% c("Alaska"))
+bbshp <- raster::crop(akshp, BB)
+save(bbshp, file="raster_data/bbshp.RData")
+```
+
+So I don't run the code above over and over. I save the shapefile.
+```{r}
+load("raster_data/bbshp.RData")
+```
+
+```{r  fig.width=10}
+tm_shape(bbshp) + tm_borders("black", lwd=3) + tm_scale_bar()
+```

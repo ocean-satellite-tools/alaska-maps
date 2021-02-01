@@ -1,0 +1,221 @@
+---
+title: "Elevations"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE)
+```
+
+# Create a map using elevations as the base layer
+
+It used to be that you could make cool maps of study areas with ggmap. But now you need a Google API with a credit card attached to it to do that. So while you could do that personally if you wanted, it's useless for teaching purposes. Also although there is a lot of free/cheap use allowed with the API, at somepoint you can hit real costs and I don't want to risk making a mistake with my Google Maps API getting out.
+
+So this example uses elevation data to make a study area map. I use the raster and tmap packages. I like [tmap](https://cran.r-project.org/web/packages/tmap/vignettes/tmap-getstarted.html) a lot. Super easy to layer map features together like I want.
+
+### Credits
+
+My example is adapted from [Visualize Spatial Data](http://www.wvview.org/spatial_analytics/Visualizing_Spatial_Data/_site/Visualize_Spatial_Data.html) in a [Open Source Spatial Analytics](http://www.wvview.org/Open_Source_Spatial_Analytics.html) course by [Dr. Aaron Maxwell](http://www.wvview.org/Prof_Maxwell.html) at West Virginia University.
+
+
+## Step 0 Load the needed packages
+
+```{r}
+library(raster)
+library(tmap)
+```
+
+## Step 1 define the area
+
+In this case, I want Bristol Bay. I just looked at a map. The numbers are longitude and latitude. Note, I know that the elevation data is in lat-lon so this will work. Sometimes your coordinate data are not in lat-lon so you'll have to convert coordinate systems.
+
+```{r}
+BB <- raster::extent(-162, -154, 56, 60)
+```
+
+## Step 2 download elevation data
+
+Download using `getData` function in raster. There is no documentation on the altitude object that you get. It's a list and `[[1]]` is the mainland and `[[2]]` is Alaska. My guess is `[[3]]` is Hawaii. 
+
+This is multiple files. It'll download once, put into the folder in `path` and then load from there next time you run the code.
+
+```{r}
+USAelevation <- raster::getData("alt", country = "USA", mask=FALSE, download = TRUE, path="raster_data")
+BB.elevation <- raster::crop(USAelevation[[2]], BB)
+```
+
+
+## Step 3 Make a hillshade layer
+
+This makes your elevation plots look a lot better by adding hill shading. The hill shading is what will make your map **pop** so you will need to futz with the numbers in the `hillShade` function to get the effect that you want. The values you see in `?hillShade` make for a drab map in my opinion.
+
+```{r}
+BB.slope <- raster::terrain(BB.elevation, opt = "slope")
+BB.aspect <- raster::terrain(BB.elevation, opt = "aspect")
+hill <- raster::hillShade(BB.slope, BB.aspect, 1, 55)
+```
+
+Save the coordinate system for the elevation data as I will need this later.
+```{r}
+hill.crs <- crs(hill)
+```
+
+Now you can make a plot of that using default raster plotting. It is ugly but makes sure we have the right data and location. At this point, you won't have an idea what the final plot will look like.
+
+```{r}
+plot(hill, col = grey(0:100/100), legend = FALSE, 
+     main = "Bristol Bay")
+plot(BB.elevation, col = terrain.colors(7, alpha = 0.35), add = TRUE)
+```
+## Step 4. Make pretty with tmap package
+
+The tmap package is the easiest one I found. This map **pops** the way I want. I futzed with `hillShade`, the pallettes, and `style=...` in `tm_raster()` until I got the effect that I wanted.
+
+```{r}
+pal <- terrain.colors(7)
+p <- tm_shape(hill)+
+  tm_raster(palette="-Greys", style="cont", legend.show=FALSE)+
+  tm_shape(BB.elevation)+
+  tm_raster(alpha=.5, style="quantile", n=7, palette=pal)
+p
+```
+
+Some other pallettes you might try:
+
+```{r eval=FALSE}
+pal <- get_brewer_pal("-Greys", n =12, plot=FALSE)
+pal <- get_brewer_pal("cividis", n =12, plot=FALSE)
+pal <- topo.colors(7)
+```
+
+## Step 5. Add on map components
+
+I want a scale, compass, lat-lon axes, and I don't want the elevation legend. I set `fig.width=10` in this chunk so that the x-axis tick labels (longitude). If plot is small, tmap will not show them.
+
+```{r fig.width=10}
+pplus <- p +
+  tm_compass(type="rose", position=c(0.7, 0.1), size=6) +
+  tm_scale_bar(position = c(0.6, .005), text.size=.8) +
+  tm_layout(legend.show=FALSE) +
+  tm_graticules(lines=FALSE, projection=as.character(hill.crs), labels.size=1)
+pplus
+```
+
+## Step 5. Add a coastline
+
+Here is how to add a coastline if you wanted. Note the cropping takes a long time.
+
+```{r eval=FALSE}
+usashp <- raster::getData("GADM", country = "USA", level = 1, path = "data")
+akshp <- subset(usashp, NAME_1 %in% c("Alaska"))
+bbshp <- raster::crop(akshp, BB)
+save(bbshp, file="raster_data/bbshp.RData")
+```
+
+So I don't run the code above over and over. I save the shapefile.
+```{r}
+load("raster_data/bbshp.RData")
+```
+
+```{r  fig.width=10}
+pplus + tm_shape(bbshp) + tm_borders("black", lwd=3)
+```
+
+## Step 6 Make my river lines
+
+This part I did manually because I couldn't figure a good way to do it otherwise. I make a raster plot where I have futzed with the elevation colors so I can see the rivers.
+
+```{r fig.width=10}
+plot(hill, col = grey(0:100/100), legend = FALSE)
+plot(BB.elevation, col = topo.colors(25, alpha = 0.35), add = TRUE, legend=FALSE, breaks=c(0,2,3,4,5,7,10,13,15,20,25,30,35,40,45,50,60,800,1000,2000,3000))
+```
+
+Then I use `drawLine()` to manually add the lines onto the map. That is going to save a shapefile with all the lines. This is tedious and doesn't look great but is good enough for my purposes. I have to do each river individually.
+
+Here is the code for Togiak River. I go through this one by one for each river.
+
+```{r eval=FALSE}
+togiak <- drawLine()
+crs(togiak) <- hill.crs
+togiak$ID <- "Togiak"
+```
+
+Once I have made all the lines I bind them together in one SpatialLines object.
+
+```{r}
+bbrivers <- raster::bind(togiak, igushik,
+                         wood, nushagak,
+                         kvichak, naknek,
+                         egegik, ugashik)
+```
+
+
+## Step 7 Add rivers to my plot
+
+```{r fig.width=10}
+ppluswrivers <- pplus +
+  tm_shape(bbrivers) +
+  tm_lines(lwd=2)
+ppluswrivers
+```
+
+## Step 8 Add labels to rivers
+
+I could just do this but it is hard to get the labels where I want.
+
+```{r fig.width=10}
+ppluswrivers +
+  tm_text("ID", size=0.75, auto.placement=TRUE,just="left",xmod=.2)
+```
+
+Instead I will create a SpatialPoints object with the ends of the rivers. I was careful to always create my rivers starting at the ocean.
+
+```{r}
+fun <- function(x){
+  SP<-SpatialPoints(coords = cbind(rev(x[,1])[1],rev(x[,2])[1]))
+  crs(SP) <- hill.crs
+  SP
+  }
+aaa=lapply(coordinates(bbrivers),function(x){fun(x[[1]])})
+for(i in 1:length(aaa)) aaa[[i]]$ID <- bbrivers[[1]][i]
+```
+
+Now bind together.
+
+```{r}
+bbrivers.lab <- aaa[[1]]
+for(i in 2:length(aaa))
+bbrivers.lab <- raster::bind(bbrivers.lab, aaa[[i]])
+```
+
+Now I can add the labels and they will be at the ends of the rivers. I tweek `xmod` and `ymod` (the jitter) until the labels don't overlap my rivers.
+```{r fig.width=10}
+finalp <- ppluswrivers +
+  tm_shape(bbrivers.lab) +
+  tm_text("ID", size=0.75, just="left",xmod=0.2, ymod=0.2)
+finalp
+```
+
+## Step 9 Make a high dpi version of the figure
+
+I had to add `outer.margins` so that it didn't cut off the y-axis tick labels.
+
+```{r fig.width=10, dpi=300}
+tiff(filename="BB_sockeye_rivers.tiff")
+finalp + tm_layout(outer.margins=c(.02,.05,.01,.03))
+dev.off()
+```
+
+png for rmarkdown docs.
+
+```{r fig.width=10, dpi=300}
+png(filename="BB_sockeye_rivers.png")
+finalp + tm_layout(outer.margins=c(.02,.05,.01,.03))
+dev.off()
+```
+
+```{r, echo=FALSE, fig.cap="A nice image."}
+knitr::include_graphics("BB_sockeye_rivers.png")
+```
+
+

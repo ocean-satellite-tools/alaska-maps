@@ -1,2 +1,5 @@
 # alaska-maps
-Create maps in R for showing site locations in Alaska. Works for other locations too.
+
+Elevations.Rmd shows how to create this map using just the raster and tmap packages. All the spatial data is also from those packages. You don't need to download any extra files.
+
+![](BB_sockeye_rivers.png)
