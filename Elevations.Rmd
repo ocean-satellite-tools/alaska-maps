@@ -4,7 +4,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message=FALSE)
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
 ```
 
 # Create a map using elevations as the base layer
@@ -37,11 +37,16 @@ BB <- raster::extent(-162, -154, 56, 60)
 
 Download using `getData` function in raster. There is no documentation on the altitude object that you get. It's a list and `[[1]]` is the mainland and `[[2]]` is Alaska. My guess is `[[3]]` is Hawaii. 
 
-This is multiple files. It'll download once, put into the folder in `path` and then load from there next time you run the code.
+This is multiple files. It'll download once, put into the folder in `path` and then load from there next time you run the code. Unfortunately Rmarkdown seems to always download the files again. So I put `eval=FALSE` on this chunk and load from a file.
 
-```{r}
+```{r eval=FALSE}
 USAelevation <- raster::getData("alt", country = "USA", mask=FALSE, download = TRUE, path="raster_data")
 BB.elevation <- raster::crop(USAelevation[[2]], BB)
+save(BB.elevation, file="raster_data/BB_elevation.rds")
+```
+
+```{r}
+load("raster_data/BB_elevation.rds")
 ```
 
 
@@ -142,7 +147,7 @@ togiak$ID <- "Togiak"
 
 Once I have made all the lines I bind them together in one SpatialLines object.
 
-```{r}
+```{r eval=FALSE}
 bbrivers <- raster::bind(togiak, igushik,
                          wood, nushagak,
                          kvichak, naknek,
@@ -151,6 +156,11 @@ bbrivers <- raster::bind(togiak, igushik,
 
 
 ## Step 7 Add rivers to my plot
+
+I put `eval=FALSE` on the chunks above and load from a saved data file. Save command is lower after I make labels.
+```{r}
+load("data/bbrivers.RData")
+```
 
 ```{r fig.width=10}
 ppluswrivers <- pplus +
@@ -170,7 +180,7 @@ ppluswrivers +
 
 Instead I will create a SpatialPoints object with the ends of the rivers. I was careful to always create my rivers starting at the ocean.
 
-```{r}
+```{r eval=FALSE}
 fun <- function(x){
   SP<-SpatialPoints(coords = cbind(rev(x[,1])[1],rev(x[,2])[1]))
   crs(SP) <- hill.crs
@@ -180,12 +190,18 @@ aaa=lapply(coordinates(bbrivers),function(x){fun(x[[1]])})
 for(i in 1:length(aaa)) aaa[[i]]$ID <- bbrivers[[1]][i]
 ```
 
-Now bind together.
+Now bind together and save.
 
-```{r}
+```{r eval=FALSE}
 bbrivers.lab <- aaa[[1]]
 for(i in 2:length(aaa))
 bbrivers.lab <- raster::bind(bbrivers.lab, aaa[[i]])
+save(bbrivers, bbrivers.lab, file="data/bbrivers.RData")
+```
+
+I put `eval=FALSE` on the chunks above and load from a saved data file.
+```{r}
+load("data/bbrivers.RData")
 ```
 
 Now I can add the labels and they will be at the ends of the rivers. I tweek `xmod` and `ymod` (the jitter) until the labels don't overlap my rivers.
@@ -198,24 +214,23 @@ finalp
 
 ## Step 9 Make a high dpi version of the figure
 
-I had to add `outer.margins` so that it didn't cut off the y-axis tick labels.
+I had to add `outer.margins` so that it didn't cut off the y-axis tick labels. You need to pass in `fig.width` and `dpi` to the get the effect you want with your image.
 
-```{r fig.width=10, dpi=300}
-tiff(filename="BB_sockeye_rivers.tiff")
+Big tiff image (dpi=300) for print publication.
+
+```{r results="hide", eval=FALSE}
+tiff(filename="BB_sockeye_rivers.tiff", units="in", width=6, height=5, res=300)
 finalp + tm_layout(outer.margins=c(.02,.05,.01,.03))
 dev.off()
 ```
 
-png for rmarkdown docs.
+Small png image for rmarkdown docs.
 
-```{r fig.width=10, dpi=300}
-png(filename="BB_sockeye_rivers.png")
+```{r results="hide", eval=FALSE}
+png(filename="BB_sockeye_rivers.png", units="in", width=6, height=5, res=96)
 finalp + tm_layout(outer.margins=c(.02,.05,.01,.03))
 dev.off()
 ```
 
-```{r, echo=FALSE, fig.cap="A nice image."}
-knitr::include_graphics("BB_sockeye_rivers.png")
-```
 
 
