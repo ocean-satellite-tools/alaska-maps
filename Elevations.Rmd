@@ -113,8 +113,9 @@ Here is how to add a coastline if you wanted. Note the cropping takes a long tim
 ```{r eval=FALSE}
 usashp <- raster::getData("GADM", country = "USA", level = 1, path = "data")
 akshp <- subset(usashp, NAME_1 %in% c("Alaska"))
+akshp <- raster::crop(akshp, raster::extent(-180, -140, 50, 80))
 bbshp <- raster::crop(akshp, BB)
-save(bbshp, file="raster_data/bbshp.RData")
+save(akshp, bbshp, file="raster_data/bbshp.RData")
 ```
 
 So I don't run the code above over and over. I save the shapefile.
@@ -231,6 +232,46 @@ png(filename="BB_sockeye_rivers.png", units="in", width=6, height=5, res=96)
 finalp + tm_layout(outer.margins=c(.02,.05,.01,.03))
 dev.off()
 ```
+
+## Adding an inset of the location
+
+Create the Alaska inset map on a non-deforming coordinate system.
+
+
+```{r}
+lambert <- "+proj=lcc +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+BB.box <- as(BB, "SpatialPolygons")
+crs(BB.box) <- crs(akshp)
+BB.box2 <- spTransform(BB.box, lambert)
+BB.box2$name <- "Bristol Bay"
+akshp2 <- spTransform(akshp, lambert)
+insetmap <- tm_shape(akshp2) + 
+  tm_polygons() +
+  tm_text("NAME_1")+
+   tm_shape(BB.box2) + tm_borders(lwd=2, col="blue") +
+  tm_text("name", size=0.7, xmod=-2, ymod=2, col="blue")
+```
+
+Add that as an inset. We use `grid::viewport`.
+```{r}
+library(grid)
+xy <- st_bbox(akshp2)
+asp2 <- (xy$xmax - xy$xmin)/(xy$ymax - xy$ymin)
+h <- 0.25
+w <- asp2 * h
+vp <- viewport(x=.084, y=0.086, width = w, height=h, 
+               just=c("left", "bottom"))
+tmap_save(
+  finalp + tm_layout(outer.margins=c(.02,.05,.01,.03)),
+  dpi=100,
+          insets_tm = insetmap,
+          insets_vp=vp,
+  filename="BB_sockeye_rivers_inset.png")
+```
+
+![](BB_sockeye_rivers_inset.png)
+
+
 
 
 
