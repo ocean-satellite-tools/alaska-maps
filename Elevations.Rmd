@@ -209,7 +209,10 @@ Now I can add the labels and they will be at the ends of the rivers. I tweek `xm
 ```{r fig.width=10}
 finalp <- ppluswrivers +
   tm_shape(bbrivers.lab) +
-  tm_text("ID", size=0.75, just="left",xmod=0.2, ymod=0.2)
+  #tm_text("ID", size=0.75, just="left",xmod=0.2, ymod=0.2, bg.color="white", bg.alpha=0.5)
+  tm_text("ID", scale=1, root=4, size.lowerbound = .6, 
+        bg.color="white", bg.alpha = .4, 
+        just="left",xmod=0.2, ymod=0.2)
 finalp
 ```
 
