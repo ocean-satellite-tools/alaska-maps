@@ -23,6 +23,7 @@ My example is adapted from [Visualize Spatial Data](http://www.wvview.org/spatia
 ```{r}
 library(raster)
 library(tmap)
+library(grid)
 ```
 
 ## Step 1 define the area
@@ -245,9 +246,10 @@ Create the Alaska inset map on a non-deforming coordinate system.
 lambert <- "+proj=lcc +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
 BB.box <- as(BB, "SpatialPolygons")
 crs(BB.box) <- crs(akshp)
-BB.box2 <- spTransform(BB.box, lambert)
+# Transform the Bristol Bay box and AK outline to Lambert
+BB.box2 <- sp::spTransform(BB.box, lambert)
 BB.box2$name <- "Bristol Bay"
-akshp2 <- spTransform(akshp, lambert)
+akshp2 <- sp::spTransform(akshp, lambert)
 insetmap <- tm_shape(akshp2) + 
   tm_polygons() +
   tm_text("NAME_1")+
@@ -257,12 +259,11 @@ insetmap <- tm_shape(akshp2) +
 
 Add that as an inset. We use `grid::viewport`.
 ```{r}
-library(grid)
-xy <- st_bbox(akshp2)
+xy <- tmap::st_bbox(akshp2)
 asp2 <- (xy$xmax - xy$xmin)/(xy$ymax - xy$ymin)
 h <- 0.25
 w <- asp2 * h
-vp <- viewport(x=.084, y=0.086, width = w, height=h, 
+vp <- grid::viewport(x=.084, y=0.086, width = w, height=h, 
                just=c("left", "bottom"))
 tmap_save(
   finalp + tm_layout(outer.margins=c(.02,.05,.01,.03)),
